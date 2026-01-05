@@ -30,3 +30,6 @@ Thumbs.db
 # ---LOGS & DATABASE ---
 *.log
 *.sql
+
+# NOTES
+notes.md

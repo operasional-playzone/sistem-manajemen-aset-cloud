@@ -1,258 +1,274 @@
-# 🏭 Sistem Manajemen Aset Mesin
+# 🏭 Sistem Manajemen Aset Mesin (Cloud Edition)
 
-Dokumentasi lengkap untuk **instalasi, konfigurasi, pemrosesan data (ETL), dan deployment**
-aplikasi **Dashboard Aset Mesin (Streamlit)** pada lingkungan **Windows (Local Deployment)**.
+Aplikasi manajemen aset berbasis web yang terintegrasi langsung dengan **Google Sheets**. Sistem ini menggantikan versi Database SQL lokal, memungkinkan akses data yang lebih fleksibel, *real-time*, dan kolaboratif tanpa biaya server (Serverless).
 
----
+## 🚀 Fitur Utama
 
-## 📌 Deskripsi Singkat
+* **Cloud Database:** Menggunakan Google Sheets sebagai backend database.
+* **CRUD Lengkap:** Input Aset Baru, Edit Detail, Mutasi (Pindah Lokasi), dan Likuidasi (Hapus).
+* **Riwayat & Log (Audit Trail):** Mencatat setiap aktivitas user (siapa, kapan, dan apa yang diubah).
+* **Fitur Undo:** Membatalkan kesalahan mutasi atau menghapus data secara instan.
+* **Generate ID Otomatis:** Sistem ID numerik yang urut dan rapi.
+* **Export Data:** Download laporan dalam format Excel `.xlsx`.
+* **Login Admin:** Keamanan akses menggunakan username/password sederhana.
 
-Aplikasi ini digunakan untuk:
-- Mengelola data aset mesin
-- Melakukan proses ETL dari Excel ke MySQL
-- Menyajikan dashboard interaktif menggunakan Streamlit
+## 🛠️ Teknologi yang Digunakan
 
----
-
-## 🛠️ 1. Persiapan Awal (Prerequisites)
-
-Pastikan software berikut sudah terinstal:
-
-1. **XAMPP** (Disarankan PHP 8.x ke atas)
-2. **Python** (Versi 3.9 atau lebih baru)
-3. **Visual Studio Code**
+* **Bahasa:** Python 3.9+
+* **Framework UI:** Streamlit
+* **Database:** Google Sheets (via Google Drive API)
+* **Library Utama:** `pandas`, `gspread`, `oauth2client`
 
 ---
 
-## ⚙️ Konfigurasi Kritis MySQL (WAJIB)
+## ⚙️ Persiapan (Instalasi)
 
-Agar upload data besar tidak gagal (`Error: Packet too large`), lakukan konfigurasi berikut:
+Ikuti langkah ini untuk menjalankan aplikasi di komputer lokal atau server baru.
 
-1. Buka **XAMPP Control Panel**
-2. Klik **Config** pada MySQL → pilih **my.ini**
-3. Cari parameter berikut:
-   ```ini
-   max_allowed_packet
-4. Ubah nilainya menjadi:
-max_allowed_packet=64M
-5. Simpan file dan restart MySQL & Apache
-
-6. Pastikan status MySQL Running (Hijau)
-
-## 🐍 2. Instalasi Environment Python
-
-Jalankan perintah berikut di **Terminal VS Code** (di folder proyek).
-
-### A. Membuat Virtual Environment
+### 1. Clone Repository
 ```bash
-python -m venv env_aset_mesin
+git clone git@github.com:operasional-playzone/sistem-manajemen-aset-cloud.git
+cd sistem-manajemen-aset-cloud
 
-B. Mengaktifkan Virtual Environment
-
-Command Prompt (cmd):
+2. Setup Virtual Environment (Opsional tapi Disarankan)
 ```bash
-env_aset_mesin\Scripts\activate
+python -m venv env_gsheet
+# Windows:
+env_gsheet\Scripts\activate
+# Mac/Linux:
+source env_gsheet/bin/activate
 
-
-PowerShell (VS Code Default):
+3. Install Dependencies
 ```bash
-.\env_aset_mesin\Scripts\Activate.ps1
-
-
-Pastikan muncul (env_aset_mesin) di terminal.
-
-C. Instalasi Library
-
-Buat file requirements.txt dengan isi berikut:
-streamlit
-pandas
-mysql-connector-python
-python-dotenv
-openpyxl
-xlsxwriter
-jupyter
-
-Install dependency:
 pip install -r requirements.txt
 
-D. Konfigurasi Database (.env)
+### 🔑 Konfigurasi Rahasia (Wajib!)
+1. File credentials.json
+Ini adalah kunci akses "Service Account" Google Cloud Platform.
 
-Buat file .env di root project:
-DB_HOST=localhost
-DB_USER=root
-DB_PASS=
+Letakkan file credentials.json di folder utama (satu level dengan app_gsheet.py).
 
-⚠️ Catatan Keamanan
-File .env tidak disarankan di-push ke GitHub.
-Tambahkan ke .gitignore.
+Pastikan email service account di dalam file ini sudah di-invite sebagai Editor di Google Sheet target.
+
+2. File .env
+Buat file bernama .env di folder utama, lalu isi konfigurasi berikut:
+# Konfigurasi Login Admin Aplikasi
+ADMIN_USER=
+ADMIN_PASS=
+
+📂 Struktur Google Sheets
+Pastikan Google Sheet target memiliki nama file DB_MANAJEMEN_ASET_MESIN dan memiliki 2 Tab (Worksheet):
+
+Tab master_aset (Header huruf kecil semua):
+
+id, lokasi_toko, kategori, nama_mesin, harga_beli, no_registrasi, status
+
+Tab riwayat_log:
+
+id, lokasi_asal, kategori, nama_mesin, jenis_aksi, tanggal, harga_beli, no_registrasi, keterangan, created_at
+
+▶️ Cara Menjalankan Aplikasi
+Setelah instalasi dan konfigurasi selesai, jalankan perintah:
+```bash
+streamlit run app_gsheet.py
+
+Tentu, ini adalah draft README.md yang profesional, lengkap, dan mudah dipahami. File ini sangat penting agar Tim IT atau Atasan Anda paham cara kerja sistem baru yang berbasis Cloud ini.
+
+Silakan buat file baru bernama README.md di VS Code, lalu copy-paste isi di bawah ini:
+
+Markdown
+
+# 🏭 Sistem Manajemen Aset Mesin (Cloud Edition)
+
+Aplikasi manajemen aset berbasis web yang terintegrasi langsung dengan **Google Sheets**. Sistem ini menggantikan versi Database SQL lokal, memungkinkan akses data yang lebih fleksibel, *real-time*, dan kolaboratif tanpa biaya server (Serverless).
+
+## 🚀 Fitur Utama
+
+* **Cloud Database:** Menggunakan Google Sheets sebagai backend database.
+* **CRUD Lengkap:** Input Aset Baru, Edit Detail, Mutasi (Pindah Lokasi), dan Likuidasi (Hapus).
+* **Riwayat & Log (Audit Trail):** Mencatat setiap aktivitas user (siapa, kapan, dan apa yang diubah).
+* **Fitur Undo:** Membatalkan kesalahan mutasi atau menghapus data secara instan.
+* **Generate ID Otomatis:** Sistem ID numerik yang urut dan rapi.
+* **Export Data:** Download laporan dalam format Excel `.xlsx`.
+* **Login Admin:** Keamanan akses menggunakan username/password sederhana.
+
+## 🛠️ Teknologi yang Digunakan
+
+* **Bahasa:** Python 3.9+
+* **Framework UI:** Streamlit
+* **Database:** Google Sheets (via Google Drive API)
+* **Library Utama:** `pandas`, `gspread`, `oauth2client`
 
 ---
 
-## 📂 3. Struktur File Proyek
+## ⚙️ Persiapan (Instalasi)
 
-Pastikan susunan folder dan nama file Anda **sesuai dengan struktur berikut** agar pipeline berjalan normal.
+Ikuti langkah ini untuk menjalankan aplikasi di komputer lokal atau server baru.
 
-```plaintext
-Project_Aset_Mesin/
-├── env_aset_mesin/                    # Virtual Environment Python
-├── .env                               # Konfigurasi Database
-├── requirements.txt                   # Daftar Library Python
-├── README.md                          # Dokumentasi Proyek
-│
-├── [DATA MENTAH]
-│   ├── Database_Aset_Lengkap.xlsx     # Data Wilayah Jabodetabek
-│   └── Database_Luar_Jabodetabek.xlsx # Data Luar Jabodetabek
-│
-├── [SCRIPTS]
-│   ├── 1_ekstrak_master.py
-│   ├── 2_ekstrak_history_with_category.py
-│   ├── cleaning_data.ipynb
-│   ├── 3_upload_ke_mysql.py
-│   └── app.py
-
-
-🚀 4. Eksekusi Pipeline Data (Migrasi)
-
-Tahapan ini WAJIB dijalankan secara berurutan untuk mengubah data Excel mentah menjadi database MySQL yang bersih dan siap dashboard.
-
-🔹 Langkah A: Ekstraksi Data Mentah
-
-Script ini berfungsi untuk:
-
-Menggabungkan beberapa file Excel
-
-Menyamakan struktur kolom
-
-Memisahkan data Master Aset dan Riwayat Log
-
-Perintah Terminal:
+### 1. Clone Repository
 ```bash
-python 1_ekstrak_master.py
-python 2_ekstrak_history_with_category.py
-
-✅ Output Berhasil:
-
-1_Master_Aset_Aktif.xlsx
-
-2_Riwayat_Log_Fix.xlsx
-
-🔹 Langkah B: Cleaning & Mapping (WAJIB)
-
-Tahap ini bertujuan untuk:
-
-Memperbaiki typo lokasi (contoh: R20 → R020 Ciputat)
-
-Standarisasi kategori mesin
-
-Mapping nama yang tidak konsisten
-
-Langkah:
-
-Buka file cleaning_data.ipynb di VS Code
-
-Klik Run All
-
-Pastikan tidak ada error di cell terakhir
-
-Simpan notebook jika ada perubahan mapping
-
-✅ Output Berhasil:
-
-File dengan akhiran _Cleaned.xlsx
-
-🔹 Langkah C: Upload ke Database MySQL
-
-Script ini:
-
-Mengupload data ke MySQL (XAMPP)
-
-Menggunakan Batch Insert (1000 baris per batch) agar aman untuk data besar
-
-Perintah Terminal:
+git clone [https://github.com/USERNAME_PERUSAHAAN/sistem-manajemen-aset-cloud.git](https://github.com/USERNAME_PERUSAHAAN/sistem-manajemen-aset-cloud.git)
+cd sistem-manajemen-aset-cloud
+2. Setup Virtual Environment (Opsional tapi Disarankan)
 ```bash
-python 3_upload_ke_mysql.py
-🎉 SELAMAT! Migrasi Database Selesai Sempurna.
 
-🌐 5. Menjalankan Aplikasi (Deploy Local)
-
-Setelah database berhasil terisi, jalankan dashboard Streamlit.
-
-Perintah Terminal:
+python -m venv env_gsheet
+# Windows:
+env_gsheet\Scripts\activate
+# Mac/Linux:
+source env_gsheet/bin/activate
+3. Install Dependencies
 ```bash
-streamlit run app.py
-📌 Hasil:
 
-Browser otomatis terbuka di:
-* http://localhost:8501
-*Gunakan Sidebar untuk:
-**Navigasi halaman
-**Filter data
-**Input mutasi & likuidasi aset
+pip install -r requirements.txt
+🔑 Konfigurasi Rahasia (Wajib!)
+Aplikasi ini membutuhkan 2 file rahasia agar bisa berjalan. File ini TIDAK DI-UPLOAD ke GitHub demi keamanan. Silakan minta file ini kepada Developer/Admin.
 
-💡 Troubleshooting & Maintenance
-🔴 Masalah: MySQL Shutdown Unexpectedly (XAMPP)
+1. File credentials.json
+Ini adalah kunci akses "Service Account" Google Cloud Platform.
 
-Biasanya terjadi karena:
+Letakkan file credentials.json di folder utama (satu level dengan app_gsheet.py).
 
-* Upload data besar tanpa konfigurasi my.ini
+Pastikan email service account di dalam file ini sudah di-invite sebagai Editor di Google Sheet target.
 
-* Komputer mati mendadak
+2. File .env
+Buat file bernama .env di folder utama, lalu isi konfigurasi berikut:
 
-Solusi (Factory Reset Database):
+Code snippet
 
-1. Stop MySQL di XAMPP
-2. Buka folder:
+# Konfigurasi Login Admin Aplikasi
+ADMIN_USER=admin
+ADMIN_PASS=rahasia123
+📂 Struktur Google Sheets
+Pastikan Google Sheet target memiliki nama file DB_MANAJEMEN_ASET_MESIN dan memiliki 2 Tab (Worksheet):
+
+Tab master_aset (Header huruf kecil semua):
+
+id, lokasi_toko, kategori, nama_mesin, harga_beli, no_registrasi, status
+
+Tab riwayat_log:
+
+id, lokasi_asal, kategori, nama_mesin, jenis_aksi, tanggal, harga_beli, no_registrasi, keterangan, created_at
+
+▶️ Cara Menjalankan Aplikasi
+Setelah instalasi dan konfigurasi selesai, jalankan perintah:
+
 ```bash
-C:\xampp\mysql\
-3. Rename folder data → data_old
-4. Buat folder baru bernama data
-5. Copy seluruh isi dari:
-C:\xampp\mysql\backup
-ke folder data baru
-6. Start MySQL kembali
-7. Jalankan ulang:
+
+streamlit run app_gsheet.py
+Aplikasi akan otomatis terbuka di browser (biasanya di http://localhost:8501).
+
+🔄 Cara Update Data Massal (Migrasi)
+Jika ada data Excel baru yang ingin di-upload ulang (Reset Database):
+
+1. Siapkan file Excel bersih dengan nama 1_Master_Aset_Cleaned.xlsx dan 2_Riwayat_Log_Cleaned.xlsx.
+
+2. Jalankan script migrasi:
 ```bash
-python 3_upload_ke_mysql.py
+python migrasi_ke_gsheet.py
 
-🟡 Masalah: Menambah Data Excel Baru
+3. Peringatan: Script ini akan menghapus seluruh isi Google Sheet dan menggantinya dengan data Excel baru
 
-Jika ada update data dari tim lapangan:
+Tentu, ini adalah draft README.md yang profesional, lengkap, dan mudah dipahami. File ini sangat penting agar Tim IT atau Atasan Anda paham cara kerja sistem baru yang berbasis Cloud ini.
 
-1. Ganti file Excel lama dengan file terbaru
-2. Jalankan ulang seluruh Tahap 4
+Silakan buat file baru bernama README.md di VS Code, lalu copy-paste isi di bawah ini:
 
-* Langkah A
+Markdown
 
-* Langkah B
+# 🏭 Sistem Manajemen Aset Mesin (Cloud Edition)
 
-* Langkah C
+Aplikasi manajemen aset berbasis web yang terintegrasi langsung dengan **Google Sheets**. Sistem ini menggantikan versi Database SQL lokal, memungkinkan akses data yang lebih fleksibel, *real-time*, dan kolaboratif tanpa biaya server (Serverless).
 
-3. Refresh Streamlit (F5)
+## 🚀 Fitur Utama
 
-🔵 Maintenance: Menambah Mapping Typo Baru
+* **Cloud Database:** Menggunakan Google Sheets sebagai backend database.
+* **CRUD Lengkap:** Input Aset Baru, Edit Detail, Mutasi (Pindah Lokasi), dan Likuidasi (Hapus).
+* **Riwayat & Log (Audit Trail):** Mencatat setiap aktivitas user (siapa, kapan, dan apa yang diubah).
+* **Fitur Undo:** Membatalkan kesalahan mutasi atau menghapus data secara instan.
+* **Generate ID Otomatis:** Sistem ID numerik yang urut dan rapi.
+* **Export Data:** Download laporan dalam format Excel `.xlsx`.
+* **Login Admin:** Keamanan akses menggunakan username/password sederhana.
 
-Jika muncul lokasi atau kategori baru:
+## 🛠️ Teknologi yang Digunakan
 
-1. Buka audit_data.ipynb
+* **Bahasa:** Python 3.9+
+* **Framework UI:** Streamlit
+* **Database:** Google Sheets (via Google Drive API)
+* **Library Utama:** `pandas`, `gspread`, `oauth2client`
 
-2. Edit:
+---
 
-*MAP_LOKASI
+## ⚙️ Persiapan (Instalasi)
 
-*MAP_KATEGORI
+Ikuti langkah ini untuk menjalankan aplikasi di komputer lokal atau server baru.
 
-*Klik Run All
-
-Jalankan ulang:
+### 1. Clone Repository
 ```bash
-python 3_upload_ke_mysql.py
+git clone [https://github.com/USERNAME_PERUSAHAAN/sistem-manajemen-aset-cloud.git](https://github.com/USERNAME_PERUSAHAAN/sistem-manajemen-aset-cloud.git)
+cd sistem-manajemen-aset-cloud
+2. Setup Virtual Environment (Opsional tapi Disarankan)
+```bash
 
+python -m venv env_gsheet
+# Windows:
+env_gsheet\Scripts\activate
+# Mac/Linux:
+source env_gsheet/bin/activate
+3. Install Dependencies
+```bash
 
-👨‍💻 Kredit
+pip install -r requirements.txt
+🔑 Konfigurasi Rahasia (Wajib!)
+Aplikasi ini membutuhkan 2 file rahasia agar bisa berjalan. File ini TIDAK DI-UPLOAD ke GitHub demi keamanan. Silakan minta file ini kepada Developer/Admin.
 
-Dibuat oleh:
-Abrar Argya Adana
+1. File credentials.json
+Ini adalah kunci akses "Service Account" Google Cloud Platform.
 
-Last Updated:
-Januari 2026
+Letakkan file credentials.json di folder utama (satu level dengan app_gsheet.py).
 
+Pastikan email service account di dalam file ini sudah di-invite sebagai Editor di Google Sheet target.
+
+2. File .env
+Buat file bernama .env di folder utama, lalu isi konfigurasi berikut:
+
+Code snippet
+
+# Konfigurasi Login Admin Aplikasi
+ADMIN_USER=admin
+ADMIN_PASS=rahasia123
+📂 Struktur Google Sheets
+Pastikan Google Sheet target memiliki nama file DB_MANAJEMEN_ASET_MESIN dan memiliki 2 Tab (Worksheet):
+
+Tab master_aset (Header huruf kecil semua):
+
+id, lokasi_toko, kategori, nama_mesin, harga_beli, no_registrasi, status
+
+Tab riwayat_log:
+
+id, lokasi_asal, kategori, nama_mesin, jenis_aksi, tanggal, harga_beli, no_registrasi, keterangan, created_at
+
+▶️ Cara Menjalankan Aplikasi
+Setelah instalasi dan konfigurasi selesai, jalankan perintah:
+
+```bash
+streamlit run app_gsheet.py
+Aplikasi akan otomatis terbuka di browser (biasanya di http://localhost:8501).
+
+🔄 Cara Update Data Massal (Migrasi)
+Jika ada data Excel baru yang ingin di-upload ulang (Reset Database):
+
+Siapkan file Excel bersih dengan nama 1_Master_Aset_Cleaned.xlsx dan 2_Riwayat_Log_Cleaned.xlsx.
+
+Jalankan script migrasi:
+
+```bash
+python migrasi_ke_gsheet.py
+Peringatan: Script ini akan menghapus seluruh isi Google Sheet dan menggantinya dengan data Excel baru.
+
+🛡️ Keamanan
+1. Jangan pernah upload file .env atau credentials.json ke GitHub Public.
+
+2. Pastikan .gitignore selalu aktif.
+
+Developer: [Abrar Argya Adana / Operasional] 
+Last Updated: Januari 2026

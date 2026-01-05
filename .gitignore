@@ -1,0 +1,32 @@
+# --- FILE RAHASIA & CONFIG  ---
+.env
+.streamlit/secrets.toml
+credentials.json
+client_secret.json
+service_account.json
+# --- VIRTUAL ENVIRONMENT ---
+env_aset_mesin/
+env_mesin_gsheet/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# ---DATA PERUSAHAAN (EXCEL) ---
+# Mencegah upload data mentah & hasil olahan
+*.xlsx
+*.xls
+*.csv
+
+# Kecuali jika punya file template kosong yang mau di-upload, 
+# tambahkan tanda seru (!) di depannya. Contoh: !template.xlsx
+
+# ---EDITOR & OS SYSTEM ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---LOGS & DATABASE ---
+*.log
+*.sql

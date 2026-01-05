@@ -5,6 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import io
 import time
+import json # <--- TAMBAHKAN INI
 from datetime import date, timedelta, datetime
 from dotenv import load_dotenv
 
@@ -17,6 +18,22 @@ st.set_page_config(
 
 # Load Environment Variables
 load_dotenv(override=True)
+
+# Load Environment Variables
+load_dotenv(override=True)
+
+# ==========================================
+# ☁️ KONFIGURASI KHUSUS CLOUD (STREAMLIT)
+# ==========================================
+# Jika file credentials.json tidak ada (karena di Cloud),
+# Maka buat file tersebut dari st.secrets
+if not os.path.exists("credentials.json"):
+    # Cek apakah ada secrets bernama 'gcp_service_account'
+    if "gcp_service_account" in st.secrets:
+        # Tulis isi secrets ke file json sementara
+        with open("credentials.json", "w") as f:
+            json.dump(dict(st.secrets["gcp_service_account"]), f)
+
 
 # ==========================================
 # 🔐 KONEKSI GOOGLE SHEETS

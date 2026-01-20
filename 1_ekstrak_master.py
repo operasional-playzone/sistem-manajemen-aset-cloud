@@ -2,10 +2,9 @@ import pandas as pd
 import openpyxl
 
 # --- KONFIGURASI MULTI-FILE ---
-# Masukkan nama semua file Excel Anda di sini
 DAFTAR_FILE = [
     'Database_Aset_Lengkap.xlsx',       # File Jabodetabek
-    'Database_Luar_Jabodetabek.xlsx'    # File Luar Jabodetabek (Ganti nama sesuai file asli)
+    'Database_Luar_Jabodetabek.xlsx'    # File Luar Jabodetabek
 ]
 
 HEADER_KUNCI = "NAMA MESIN"
@@ -41,7 +40,7 @@ def ekstrak_hanya_master():
                         anchor_row = cell.row
                         anchor_col = cell.column
                         
-                        # Cek Header di Atasnya
+                        # Cek Header di Atasnya (Kategori)
                         header_atas = "Uncategorized"
                         try:
                             val = ws.cell(row=anchor_row-1, column=anchor_col-1).value
@@ -49,7 +48,7 @@ def ekstrak_hanya_master():
                             if val: header_atas = str(val)
                         except: pass
                         
-                        # FILTER HISTORY
+                        # FILTER HISTORY (Skip jika ini tabel mutasi/likuidasi)
                         if cek_apakah_history(header_atas):
                             continue 
                         
@@ -61,13 +60,23 @@ def ekstrak_hanya_master():
                             nama_mesin = ws.cell(row=current_row, column=anchor_col).value
                             if not nama_mesin: break
                             
-                            harga     = ws.cell(row=current_row, column=anchor_col+1).value
-                            no_reg    = ws.cell(row=current_row, column=anchor_col+2).value
-                            no_sys    = ws.cell(row=current_row, column=anchor_col+3).value
+                            # --- MODIFIKASI: AMBIL DATA KOLOM LAIN ---
+                            # Asumsi: Tanggal/Mesin Datang ada di SEBELAH KIRI Nama Mesin (-1)
+                            # Jika ada di kanan, ganti jadi (anchor_col + 4) misalnya.
+                            tgl_datang = ws.cell(row=current_row, column=anchor_col - 1).value
                             
+                            harga      = ws.cell(row=current_row, column=anchor_col + 1).value
+                            no_reg     = ws.cell(row=current_row, column=anchor_col + 2).value
+                            no_sys     = ws.cell(row=current_row, column=anchor_col + 3).value
+                            
+                            # Bersihkan format tanggal jika perlu (Opsional)
+                            if hasattr(tgl_datang, 'strftime'):
+                                tgl_datang = tgl_datang.strftime('%Y-%m-%d')
+
                             data_master_gabungan.append({
                                 'lokasi_toko': lokasi_toko,
                                 'kategori': kategori_bersih,
+                                'mesin_datang': tgl_datang,  # <--- KOLOM BARU
                                 'nama_mesin': nama_mesin,
                                 'harga_beli': harga,
                                 'no_registrasi': no_reg,
@@ -82,8 +91,17 @@ def ekstrak_hanya_master():
 list_master = ekstrak_hanya_master()
 df = pd.DataFrame(list_master)
 
+# Atur urutan kolom agar rapi saat di Excel
+urutan_kolom = [
+    'lokasi_toko', 'kategori', 'mesin_datang', 'nama_mesin', 
+    'harga_beli', 'no_registrasi', 'no_reg_system', 'status'
+]
+# Pastikan hanya kolom yang ada yang diurutkan
+df = df[[c for c in urutan_kolom if c in df.columns]]
+
 print("\n=== HASIL MASTER ASET (GABUNGAN) ===")
 print(f"✅ Total Aset Aktif: {len(df)} unit")
+print(f"✅ Kolom 'mesin_datang' berhasil ditambahkan.")
 
 output_file = '1_Master_Aset_Aktif.xlsx'
 df.to_excel(output_file, index=False)

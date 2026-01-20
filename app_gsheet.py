@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import io
 import time
-import json # <--- TAMBAHKAN INI
+import json
 from datetime import date, timedelta, datetime
 from dotenv import load_dotenv
 
@@ -19,21 +19,13 @@ st.set_page_config(
 # Load Environment Variables
 load_dotenv(override=True)
 
-# Load Environment Variables
-load_dotenv(override=True)
-
 # ==========================================
 # ☁️ KONFIGURASI KHUSUS CLOUD (STREAMLIT)
 # ==========================================
-# Jika file credentials.json tidak ada (karena di Cloud),
-# Maka buat file tersebut dari st.secrets
 if not os.path.exists("credentials.json"):
-    # Cek apakah ada secrets bernama 'gcp_service_account'
     if "gcp_service_account" in st.secrets:
-        # Tulis isi secrets ke file json sementara
         with open("credentials.json", "w") as f:
             json.dump(dict(st.secrets["gcp_service_account"]), f)
-
 
 # ==========================================
 # 🔐 KONEKSI GOOGLE SHEETS
@@ -66,7 +58,7 @@ def load_data(sheet_name):
     # Standarisasi header jadi huruf kecil semua
     df.columns = df.columns.str.lower()
     
-    # Rename kolom tanggal manual jika ada
+    # Rename kolom tanggal manual jika ada variasi nama
     rename_map = {
         'tgl': 'tanggal',
         'date': 'tanggal',
@@ -80,30 +72,24 @@ def load_data(sheet_name):
         
     return df
 
-def generate_id():
-    # Load data master untuk cek ID terakhir
+def generate_id(sheet_name="master_aset"):
+    """Generate ID numerik baru berdasarkan sheet tertentu"""
     sh = get_gsheet_connection()
-    worksheet = sh.worksheet("master_aset")
+    worksheet = sh.worksheet(sheet_name)
+    ids = worksheet.col_values(1)  # Ambil kolom pertama (ID)
     
-    # Ambil kolom pertama (ID)
-    ids = worksheet.col_values(1) 
-    
-    # Hapus header "id" dari list jika ada
+    # Bersihkan header 'id' jika ikut terambil
     if ids and ids[0].lower() == 'id':
         ids.pop(0)
-    
-    # Jika data masih kosong, mulai dari 1
+        
     if not ids:
         return "1"
-    
-    # Ubah semua ID jadi angka (integer) untuk cari yang terbesar
-    # Filter hanya yang angka saja (biar tidak error jika ada ID aneh)
+        
+    # Cari angka terbesar
     numeric_ids = [int(x) for x in ids if str(x).isdigit()]
-    
     if not numeric_ids:
         return "1"
-    
-    # Ambil ID terbesar + 1
+        
     new_id = max(numeric_ids) + 1
     return str(new_id)
 
@@ -158,7 +144,6 @@ menu = st.sidebar.radio("Pilih Halaman:", [
     "Master Aset (Aktif)", 
     "Riwayat Log (History)",
     "⚡ Kelola Aset (Admin)",
-    "📘 Panduan Pengguna"
 ])
 st.sidebar.markdown("---")
 
@@ -176,14 +161,18 @@ if menu == "Master Aset (Aktif)":
     if not df_master.empty:
         st.sidebar.subheader("Filter Master Aset")
         
+        # Filter Lokasi
         list_lokasi = sorted(df_master['lokasi_toko'].unique().tolist())
         pilih_lokasi = st.sidebar.multiselect("Pilih Lokasi:", list_lokasi)
         
+        # Filter Kategori
         list_kategori = sorted(df_master['kategori'].unique().tolist())
         pilih_kategori = st.sidebar.multiselect("Pilih Kategori:", list_kategori)
         
+        # Search
         keyword = st.text_input("🔍 Cari Nama Mesin / No Registrasi / ID:", "")
         
+        # Apply Filter
         df_tampil = df_master.copy()
         if pilih_lokasi:
             df_tampil = df_tampil[df_tampil['lokasi_toko'].isin(pilih_lokasi)]
@@ -192,7 +181,8 @@ if menu == "Master Aset (Aktif)":
         if keyword:
             df_tampil = df_tampil[
                 df_tampil['nama_mesin'].str.contains(keyword, case=False, na=False) |
-                df_tampil['id'].str.contains(keyword, case=False, na=False)
+                df_tampil['id'].str.contains(keyword, case=False, na=False) |
+                df_tampil['no_registrasi'].astype(str).str.contains(keyword, case=False, na=False)
             ]
 
         col_kiri, col_kanan = st.columns([4, 1])
@@ -218,15 +208,16 @@ elif menu == "Riwayat Log (History)":
     df_base = load_data("riwayat_log")
     
     if not df_base.empty:
+        # Cek kolom wajib
         if 'tanggal' not in df_base.columns:
             st.error("Kolom 'tanggal' tidak ditemukan di Excel Log!")
             st.stop()
 
+        # --- Filter Sidebar ---
         st.sidebar.subheader("Filter History")
-        st.sidebar.markdown("### 📅 Filter Waktu")
         tampil_semua = st.sidebar.checkbox("Tampilkan Semua Tanggal", value=False)
         
-        # Konversi ke DateTime (NaT handled)
+        # Konversi ke Datetime untuk filtering
         df_base['tanggal_filter'] = pd.to_datetime(df_base['tanggal'], errors='coerce')
         
         if not tampil_semua:
@@ -248,13 +239,13 @@ elif menu == "Riwayat Log (History)":
         else:
             df_history = df_base.copy()
             
-        # Format ulang tampilan tanggal
+        # Rapikan Format Tanggal Tampilan
         df_history['tanggal'] = df_history['tanggal_filter'].dt.strftime('%Y-%m-%d').fillna("-")
-        df_history = df_history.drop(columns=['tanggal_filter'])
         
-        # Sortir jika ada created_at
-        if 'created_at' in df_history.columns:
-            df_history = df_history.sort_values(by='created_at', ascending=False)
+        # Sorting (Urutkan dari ID Log terbesar/terbaru)
+        if 'id' in df_history.columns:
+            df_history['id_num'] = pd.to_numeric(df_history['id'], errors='coerce')
+            df_history = df_history.sort_values(by='id_num', ascending=False).drop(columns=['id_num'])
 
         if not df_history.empty:
             col_lok = 'lokasi_asal' if 'lokasi_asal' in df_history.columns else 'lokasi'
@@ -262,26 +253,45 @@ elif menu == "Riwayat Log (History)":
             list_lokasi_hist = sorted(df_history[col_lok].astype(str).unique().tolist())
             pilih_lokasi_hist = st.sidebar.multiselect("Pilih Lokasi Asal:", list_lokasi_hist)
             
-            list_kategori_hist = sorted(df_history['kategori'].astype(str).unique().tolist())
-            pilih_kategori_hist = st.sidebar.multiselect("Pilih Kategori:", list_kategori_hist)
-
             list_aksi = sorted(df_history['jenis_aksi'].astype(str).unique().tolist())
             pilih_aksi = st.sidebar.multiselect("Jenis Aksi:", list_aksi)
             
-            keyword_hist = st.text_input("🔍 Cari History (Nama Mesin):", "")
+            # --- FITUR PENCARIAN (UPDATED) ---
+            keyword_hist = st.text_input("🔍 Cari (Nama Mesin / No Registrasi):", "")
             
             df_hist_tampil = df_history.copy()
+            
+            # Filter Filter Sidebar
             if pilih_lokasi_hist:
                 df_hist_tampil = df_hist_tampil[df_hist_tampil[col_lok].isin(pilih_lokasi_hist)]
-            if pilih_kategori_hist:
-                df_hist_tampil = df_hist_tampil[df_hist_tampil['kategori'].isin(pilih_kategori_hist)]
             if pilih_aksi:
                 df_hist_tampil = df_hist_tampil[df_hist_tampil['jenis_aksi'].isin(pilih_aksi)]
+            
+            # Filter Pencarian Ganda (Nama ATAU No Registrasi)
             if keyword_hist:
-                df_hist_tampil = df_hist_tampil[df_hist_tampil['nama_mesin'].str.contains(keyword_hist, case=False, na=False)]
+                df_hist_tampil = df_hist_tampil[
+                    df_hist_tampil['nama_mesin'].str.contains(keyword_hist, case=False, na=False) |
+                    df_hist_tampil['no_registrasi'].astype(str).str.contains(keyword_hist, case=False, na=False)
+                ]
 
-            st.info(f"Menampilkan {len(df_hist_tampil)} catatan sejarah.")
-            st.dataframe(df_hist_tampil, use_container_width=True, hide_index=True)
+            # URUTAN KOLOM TAMPILAN
+            target_cols = ['tanggal', 'jenis_aksi', 'nama_mesin', 'lokasi_asal', 'keterangan', 'harga_beli', 'no_registrasi', 'no_reg_system']
+            final_cols = [c for c in target_cols if c in df_hist_tampil.columns]
+
+            # === FITUR DOWNLOAD (BARU) ===
+            col_kiri, col_kanan = st.columns([4, 1])
+            with col_kiri:
+                st.info(f"Menampilkan {len(df_hist_tampil)} catatan sejarah.")
+            with col_kanan:
+                excel_data = convert_df_to_excel(df_hist_tampil[final_cols])
+                st.download_button(
+                    label="📥 Download Excel",
+                    data=excel_data,
+                    file_name='riwayat_log_aset.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+
+            st.dataframe(df_hist_tampil[final_cols], use_container_width=True, hide_index=True)
         else:
             st.warning("Tidak ada data pada rentang tanggal tersebut.")
     else:
@@ -297,22 +307,23 @@ elif menu == "⚡ Kelola Aset (Admin)":
     ws_master = sh.worksheet("master_aset")
     ws_log = sh.worksheet("riwayat_log")
     
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "➕ Input Baru", 
         "✏️ Edit Detail",     
         "🚚 Mutasi (Pindah)", 
         "🗑️ Likuidasi (Hapus)",
-        "🕵️ Jejak Aset",
-        "↩️ Undo Kesalahan"
+        "🛠️ Koreksi Log (Undo)"
     ])
+    
+    # Ambil Data Master Terbaru
+    df_master = load_data("master_aset")
     
     # --- TAB 1: INPUT BARU ---
     with tab1:
         st.subheader("Tambah Aset Mesin Baru")
         
-        df_master = load_data("master_aset")
-        list_lok = df_master['lokasi_toko'].unique().tolist() if not df_master.empty else []
-        list_kat = df_master['kategori'].unique().tolist() if not df_master.empty else []
+        list_lok = sorted(df_master['lokasi_toko'].unique().tolist()) if not df_master.empty else []
+        list_kat = sorted(df_master['kategori'].unique().tolist()) if not df_master.empty else []
         
         with st.form("form_input", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -323,240 +334,276 @@ elif menu == "⚡ Kelola Aset (Admin)":
             input_kategori_baru = c2.text_input("Nama Kategori Baru (Jika pilih ++ Tambah Baru ++)", key="in_kat_baru")
             
             st.markdown("---")
-            input_nama = st.text_input("Nama Mesin (Wajib)", key="in_nama")
+            input_nama = st.text_input("Nama Mesin")
             c3, c4 = st.columns(2)
-            input_harga = c3.text_input("Harga Beli", key="in_harga")
-            input_noreg = c4.text_input("No Registrasi", key="in_noreg")
+            input_harga = c3.number_input("Harga Beli (Rp)", min_value=0, step=1000)
+            input_noreg = c4.text_input("No Registrasi (Manual/Opsional)")
             
-            if st.form_submit_button("Simpan ke Cloud"):
-                final_lok = input_lokasi_baru.upper() if pilihan_lokasi == "++ Tambah Baru ++" else pilihan_lokasi
-                final_kat = input_kategori_baru.upper() if pilihan_kategori == "++ Tambah Baru ++" else pilihan_kategori
+            btn_submit = st.form_submit_button("💾 Simpan Data Baru")
+            
+            if btn_submit:
+                if not input_nama:
+                    st.error("Nama Mesin wajib diisi!")
+                else:
+                    final_lokasi = input_lokasi_baru if pilihan_lokasi == "++ Tambah Baru ++" else pilihan_lokasi
+                    final_kategori = input_kategori_baru if pilihan_kategori == "++ Tambah Baru ++" else pilihan_kategori
+                    
+                    if not final_lokasi or not final_kategori:
+                        st.error("Lokasi dan Kategori harus diisi!")
+                    else:
+                        with st.spinner("Menyimpan ke Cloud..."):
+                            try:
+                                # 1. Generate ID Baru (Master)
+                                new_id = generate_id("master_aset")
+                                
+                                # 2. Append ke Master Aset
+                                row_master = [new_id, final_lokasi, final_kategori, input_nama, input_harga, input_noreg, "Aktif"]
+                                ws_master.append_row(row_master)
+                                
+                                # 3. Append ke Log (INPUT BARU)
+                                log_id = generate_id("riwayat_log")
+                                tgl_skrg = datetime.now().strftime("%Y-%m-%d")
+                                
+                                row_log = [
+                                    log_id,             # 1. id
+                                    final_lokasi,       # 2. lokasi_asal
+                                    final_kategori,     # 3. kategori
+                                    "Input Baru",       # 4. jenis_aksi
+                                    tgl_skrg,           # 5. tanggal
+                                    input_nama,         # 6. nama_mesin
+                                    input_harga,        # 7. harga_beli
+                                    input_noreg,        # 8. no_registrasi
+                                    new_id,             # 9. no_reg_system
+                                    "Penambahan aset baru" # 10. keterangan
+                                ]
+                                ws_log.append_row(row_log)
+                                
+                                st.success(f"Berhasil! Aset '{input_nama}' ditambahkan dengan ID {new_id}")
+                                time.sleep(1)
+                                st.cache_data.clear()
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"Terjadi kesalahan: {e}")
+
+    # --- TAB 2: EDIT ---
+    with tab2:
+        st.subheader("Edit Data Aset")
+        pilih_aset_edit = st.selectbox("Pilih Aset untuk Diedit:", 
+                                       df_master['nama_mesin'] + " | " + df_master['id'] + " | " + df_master['lokasi_toko'],
+                                       key="sel_edit")
+        
+        if pilih_aset_edit:
+            id_edit = pilih_aset_edit.split(" | ")[1]
+            data_lama = df_master[df_master['id'] == id_edit].iloc[0]
+            
+            with st.form("form_edit"):
+                new_nama = st.text_input("Nama Mesin", value=data_lama['nama_mesin'])
+                new_harga = st.number_input("Harga Beli", value=int(data_lama['harga_beli']) if pd.notna(data_lama['harga_beli']) and str(data_lama['harga_beli']).isdigit() else 0)
+                new_noreg = st.text_input("No Registrasi", value=str(data_lama['no_registrasi']) if pd.notna(data_lama['no_registrasi']) else "-")
+                ket_edit = st.text_area("Alasan Perubahan (Masuk ke Log)", "Update data aset")
                 
-                if final_lok and final_kat and input_nama:
+                if st.form_submit_button("Update Data"):
                     try:
-                        new_id = generate_id()
-                        row_data = [new_id, final_lok, final_kat, input_nama.upper(), input_harga, input_noreg, "Aktif"]
-                        ws_master.append_row(row_data)
-                        st.success(f"✅ Berhasil! {input_nama} tersimpan.")
+                        cell = ws_master.find(id_edit)
+                        row_idx = cell.row
+                        
+                        ws_master.update_cell(row_idx, 4, new_nama)
+                        ws_master.update_cell(row_idx, 5, new_harga)
+                        ws_master.update_cell(row_idx, 6, new_noreg)
+                        
+                        log_id = generate_id("riwayat_log")
+                        tgl_skrg = datetime.now().strftime("%Y-%m-%d")
+                        
+                        row_log = [
+                            log_id,
+                            data_lama['lokasi_toko'],
+                            data_lama['kategori'],
+                            "Edit Data",
+                            tgl_skrg,
+                            new_nama,
+                            new_harga,
+                            new_noreg,
+                            id_edit,
+                            ket_edit
+                        ]
+                        ws_log.append_row(row_log)
+                        
+                        st.success("Data berhasil diupdate!")
+                        st.cache_data.clear()
                         time.sleep(1)
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Gagal simpan: {e}")
-                else:
-                    st.warning("Data wajib diisi semua!")
-
-    # --- TAB 2: EDIT DETAIL ---
-    with tab2:
-        st.subheader("✏️ Edit Detail Aset")
-        id_edit = st.text_input("Masukkan ID Aset (Edit):")
-        
-        if id_edit:
-            cell = ws_master.find(id_edit)
-            if cell:
-                row_vals = ws_master.row_values(cell.row)
-                curr_kat = row_vals[2] if len(row_vals) > 2 else ""
-                curr_nama = row_vals[3] if len(row_vals) > 3 else ""
-                curr_harga = row_vals[4] if len(row_vals) > 4 else ""
-                curr_noreg = row_vals[5] if len(row_vals) > 5 else ""
-
-                st.write(f"Editing: **{curr_nama}**")
-                
-                with st.form("form_edit"):
-                    ed_nama = st.text_input("Nama Mesin", value=curr_nama)
-                    ed_kat = st.text_input("Kategori", value=curr_kat)
-                    c_e1, c_e2 = st.columns(2)
-                    ed_harga = c_e1.text_input("Harga", value=curr_harga)
-                    ed_noreg = c_e2.text_input("No Reg", value=curr_noreg)
-                    
-                    if st.form_submit_button("Update Data"):
-                        ws_master.update_cell(cell.row, 3, ed_kat.upper())
-                        ws_master.update_cell(cell.row, 4, ed_nama.upper())
-                        ws_master.update_cell(cell.row, 5, ed_harga)
-                        ws_master.update_cell(cell.row, 6, ed_noreg)
-                        
-                        log_row = [generate_id(), row_vals[1], ed_kat, ed_nama, "Koreksi Data", str(date.today()), "", "", "Edit Detail Admin", str(datetime.now())]
-                        ws_log.append_row(log_row)
-                        
-                        st.success("Data Terupdate!")
-                        time.sleep(1)
-                        st.rerun()
-            else:
-                st.error("ID Tidak Ditemukan.")
+                        st.error(f"Gagal update: {e}")
 
     # --- TAB 3: MUTASI ---
     with tab3:
-        st.subheader("🚚 Mutasi (Pindah Lokasi)")
-        id_mut = st.text_input("Masukkan ID Aset (Mutasi):")
+        st.subheader("Mutasi (Pindah Lokasi)")
+        pilih_aset_mutasi = st.selectbox("Pilih Aset untuk Dipindah:", 
+                                         df_master['nama_mesin'] + " | " + df_master['id'] + " | " + df_master['lokasi_toko'],
+                                         key="sel_mutasi")
         
-        if id_mut:
-            cell = ws_master.find(id_mut)
-            if cell:
-                row_vals = ws_master.row_values(cell.row)
-                loc_now = row_vals[1] if len(row_vals) > 1 else "?"
-                st.info(f"Lokasi Sekarang: {loc_now}")
+        if pilih_aset_mutasi:
+            id_mutasi = pilih_aset_mutasi.split(" | ")[1]
+            data_asal = df_master[df_master['id'] == id_mutasi].iloc[0]
+            
+            st.info(f"Lokasi Saat Ini: **{data_asal['lokasi_toko']}**")
+            
+            with st.form("form_mutasi"):
+                tujuan_lokasi = st.selectbox("Pilih Lokasi Tujuan", list_lok + ["++ Tambah Baru ++"])
+                input_tujuan_baru = st.text_input("Lokasi Baru (Opsional)", key="in_tuj_baru")
+                tgl_mutasi = st.date_input("Tanggal Pindah", value=date.today())
+                ket_mutasi = st.text_area("Keterangan", "Rotasi mesin reguler")
                 
-                df_m = load_data("master_aset")
-                list_l = df_m['lokasi_toko'].unique().tolist()
-                
-                with st.form("form_mutasi"):
-                    lok_baru = st.selectbox("Pindah ke:", list_l)
-                    ket_mut = st.text_area("Keterangan")
+                if st.form_submit_button("🚚 Proses Mutasi"):
+                    final_tujuan = input_tujuan_baru if tujuan_lokasi == "++ Tambah Baru ++" else tujuan_lokasi
                     
-                    if st.form_submit_button("Proses Mutasi"):
-                        if lok_baru == loc_now:
-                            st.warning("Lokasi sama!")
-                        else:
-                            ws_master.update_cell(cell.row, 2, lok_baru)
+                    if not final_tujuan or final_tujuan == data_asal['lokasi_toko']:
+                        st.error("Lokasi tujuan tidak valid atau sama dengan lokasi asal.")
+                    else:
+                        try:
+                            cell = ws_master.find(id_mutasi)
+                            ws_master.update_cell(cell.row, 2, final_tujuan)
                             
-                            nm = row_vals[3] if len(row_vals) > 3 else ""
-                            kat = row_vals[2] if len(row_vals) > 2 else ""
+                            log_id = generate_id("riwayat_log")
+                            row_log = [
+                                log_id,
+                                data_asal['lokasi_toko'], # Lokasi ASAL
+                                data_asal['kategori'],
+                                "Mutasi",
+                                tgl_mutasi.strftime("%Y-%m-%d"),
+                                data_asal['nama_mesin'],
+                                int(data_asal['harga_beli']) if pd.notna(data_asal['harga_beli']) else 0,
+                                str(data_asal['no_registrasi']),
+                                id_mutasi,
+                                f"Pindah ke {final_tujuan}. {ket_mutasi}"
+                            ]
+                            ws_log.append_row(row_log)
                             
-                            log_row = [generate_id(), loc_now, kat, nm, "Mutasi", str(date.today()), "", "", f"Ke {lok_baru}. {ket_mut}", str(datetime.now())]
-                            ws_log.append_row(log_row)
-                            
-                            st.success("Berhasil Mutasi!")
+                            st.success(f"Berhasil dipindah ke {final_tujuan}")
+                            st.cache_data.clear()
                             time.sleep(1)
                             st.rerun()
-            else:
-                st.error("ID Tidak ditemukan.")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
     # --- TAB 4: LIKUIDASI ---
     with tab4:
-        st.subheader("🗑️ Hapus Aset (Likuidasi)")
-        id_del = st.text_input("Masukkan ID Aset (Hapus):")
+        st.subheader("Likuidasi (Hapus/Jual Aset)")
+        pilih_aset_hapus = st.selectbox("Pilih Aset:", 
+                                        df_master['nama_mesin'] + " | " + df_master['id'] + " | " + df_master['lokasi_toko'],
+                                        key="sel_hapus")
         
-        if id_del:
-            cell = ws_master.find(id_del)
-            if cell:
-                row_vals = ws_master.row_values(cell.row)
-                st.warning(f"Menghapus: {row_vals[3]}")
+        if pilih_aset_hapus:
+            id_hapus = pilih_aset_hapus.split(" | ")[1]
+            data_hapus = df_master[df_master['id'] == id_hapus].iloc[0]
+            
+            st.warning(f"⚠️ Anda akan menghapus **{data_hapus['nama_mesin']}** secara permanen dari Master Aset.")
+            
+            with st.form("form_hapus"):
+                alasan_hapus = st.selectbox("Jenis Aksi", ["Likuidasi (Dijual)", "Rusak/Musnah", "Hilang", "Donasi"])
+                ket_hapus = st.text_area("Detail Keterangan", "Mesin sudah tua/rusak")
                 
-                with st.form("form_del"):
-                    alasan = st.selectbox("Alasan", ["Likuidasi", "Musnah", "Terjual", "Hilang"])
-                    ket_del = st.text_area("Keterangan")
-                    
-                    if st.form_submit_button("🔥 Hapus Permanen"):
-                        nm = row_vals[3] if len(row_vals) > 3 else ""
-                        kat = row_vals[2] if len(row_vals) > 2 else ""
-                        loc = row_vals[1] if len(row_vals) > 1 else ""
-                        
-                        log_row = [generate_id(), loc, kat, nm, alasan.upper(), str(date.today()), "", "", ket_del, str(datetime.now())]
-                        ws_log.append_row(log_row)
-                        
+                if st.form_submit_button("🗑️ Konfirmasi Hapus"):
+                    try:
+                        cell = ws_master.find(id_hapus)
                         ws_master.delete_rows(cell.row)
-                        st.success("Aset dihapus.")
+                        
+                        log_id = generate_id("riwayat_log")
+                        tgl_skrg = datetime.now().strftime("%Y-%m-%d")
+                        row_log = [
+                            log_id,
+                            data_hapus['lokasi_toko'],
+                            data_hapus['kategori'],
+                            alasan_hapus,
+                            tgl_skrg,
+                            data_hapus['nama_mesin'],
+                            int(data_hapus['harga_beli']) if pd.notna(data_hapus['harga_beli']) else 0,
+                            str(data_hapus['no_registrasi']),
+                            id_hapus,
+                            ket_hapus
+                        ]
+                        ws_log.append_row(row_log)
+                        
+                        st.success("Data berhasil dihapus dari Master dan dicatat di History.")
+                        st.cache_data.clear()
                         time.sleep(1)
                         st.rerun()
-            else:
-                st.error("ID Tidak ditemukan.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
-    # --- TAB 5: JEJAK ASET ---
+    # --- TAB 5: KOREKSI LOG (UNDO) ---
     with tab5:
-        st.subheader("🕵️ Jejak Aset")
-        cari_nama = st.text_input("Cari Nama Mesin:")
-        
-        if cari_nama:
-            df_log = load_data("riwayat_log")
-            if not df_log.empty:
-                df_trace = df_log[df_log['nama_mesin'].str.contains(cari_nama, case=False, na=False)]
-                if 'created_at' in df_trace.columns:
-                    df_trace = df_trace.sort_values(by='created_at', ascending=False)
-                
-                if not df_trace.empty:
-                    st.write(f"Ditemukan {len(df_trace)} riwayat.")
-                    for idx, row in df_trace.iterrows():
-                        role = "user" if row['jenis_aksi'] == "Mutasi" else "assistant"
-                        with st.chat_message(role):
-                            st.write(f"**{row['tanggal']} - {row['jenis_aksi']}**")
-                            loc_col = 'lokasi_asal' if 'lokasi_asal' in row else 'lokasi'
-                            st.caption(f"📍 {row.get(loc_col, '-')} | {row['keterangan']}")
-                else:
-                    st.info("Tidak ada riwayat.")
+        st.subheader("🛠️ Koreksi / Edit Riwayat Log")
+        st.info("Fitur ini digunakan jika ada kesalahan penulisan di Riwayat (Log), bukan untuk mengembalikan barang.")
 
-    # --- TAB 6: UNDO KESALAHAN (DIPERBAIKI) ---
-    with tab6:
-        st.subheader("↩️ Undo Kesalahan Terakhir")
-        st.warning("⚠️ Fitur ini membatalkan aksi terakhir.")
+        # 1. Filter Tanggal
+        tgl_filter_log = st.date_input("Pilih Tanggal Kejadian", value=date.today())
         
-        df_log_undo = load_data("riwayat_log")
+        # 2. Ambil Data Log
+        df_log = load_data("riwayat_log")
         
-        # --- PERBAIKAN LOGIKA DISINI ---
-        if not df_log_undo.empty:
-            # Jika ada kolom created_at, sort berdasarkan itu
-            if 'created_at' in df_log_undo.columns:
-                df_log_undo = df_log_undo.sort_values(by='created_at', ascending=False).head(5)
-            else:
-                # Jika tidak ada, ambil 5 baris terbawah (biasanya data terbaru) dan balik urutannya
-                df_log_undo = df_log_undo.tail(5).iloc[::-1]
-
-            st.write("##### 5 Aktivitas Terakhir:")
-            for idx, row in df_log_undo.iterrows():
-                tgl_show = row['tanggal'] if pd.notna(row['tanggal']) else "-"
-                label = f"{row['jenis_aksi']} - {row['nama_mesin']} ({tgl_show})"
+        # Filter berdasarkan tanggal string
+        df_log['tanggal_str'] = pd.to_datetime(df_log['tanggal'], errors='coerce').dt.strftime('%Y-%m-%d')
+        df_target = df_log[df_log['tanggal_str'] == tgl_filter_log.strftime('%Y-%m-%d')]
+        
+        if not df_target.empty:
+            # 3. Pilih ID Log
+            pilihan_log = st.selectbox("Pilih Log untuk Diedit:", 
+                df_target['id'].astype(str) + " | " + df_target['nama_mesin'] + " | " + df_target['jenis_aksi'])
+            
+            if pilihan_log:
+                id_log_pilih = pilihan_log.split(" | ")[0]
+                # Ambil data spesifik
+                data_log = df_target[df_target['id'].astype(str) == id_log_pilih].iloc[0]
                 
-                with st.expander(label):
-                    st.write(f"Ket: {row['keterangan']}")
-                    col_u, col_i = st.columns([1, 3])
+                with st.form("form_edit_log"):
+                    st.write(f"**ID Log:** {id_log_pilih}")
                     
-                    # === UNDO MUTASI ===
-                    if row['jenis_aksi'] == 'Mutasi':
-                        if col_u.button("↩️ BATALKAN MUTASI", key=f"btn_m_{row['id']}"):
-                            with st.spinner("Mengembalikan lokasi..."):
-                                try:
-                                    # Cari Mesin di Master (in_column=4 untuk Nama Mesin)
-                                    cell_m = ws_master.find(row['nama_mesin'], in_column=4)
-                                    
-                                    if cell_m:
-                                        # Kembalikan ke lokasi asal (Col 2)
-                                        loc_col_name = 'lokasi_asal' if 'lokasi_asal' in row else 'lokasi'
-                                        ws_master.update_cell(cell_m.row, 2, row[loc_col_name])
-                                        
-                                        # Hapus Log
-                                        cell_l = ws_log.find(str(row['id']))
-                                        if cell_l: ws_log.delete_rows(cell_l.row)
-                                        
-                                        st.success(f"✅ Mutasi {row['nama_mesin']} DIBATALKAN.")
-                                        time.sleep(2)
-                                        st.rerun()
-                                    else:
-                                        st.error(f"Gagal: Mesin '{row['nama_mesin']}' tidak ditemukan di Master.")
-                                except Exception as e:
-                                    st.error(f"Error Undo: {e}")
+                    edit_tgl = st.date_input("Tanggal", value=pd.to_datetime(data_log['tanggal']).date())
+                    edit_nama = st.text_input("Nama Mesin", value=data_log['nama_mesin'])
+                    edit_aksi = st.text_input("Jenis Aksi", value=data_log['jenis_aksi'])
+                    edit_lokasi = st.text_input("Lokasi Asal", value=data_log['lokasi_asal'])
+                    edit_ket = st.text_area("Keterangan", value=data_log['keterangan'])
+                    
+                    c_del, c_save = st.columns([1, 4])
+                    
+                    # Tombol Hapus (Undo Total)
+                    delete_btn = c_del.form_submit_button("🗑️ Hapus Log")
+                    
+                    # Tombol Simpan Perubahan
+                    save_btn = c_save.form_submit_button("💾 Simpan Perubahan")
+                    
+                    if save_btn:
+                        try:
+                            # Cari baris berdasarkan ID Log
+                            cell = ws_log.find(id_log_pilih)
+                            r = cell.row
+                            
+                            # Update kolom spesifik
+                            ws_log.update_cell(r, 2, edit_lokasi) # lokasi_asal
+                            ws_log.update_cell(r, 4, edit_aksi)   # jenis_aksi
+                            ws_log.update_cell(r, 5, edit_tgl.strftime("%Y-%m-%d")) # tanggal
+                            ws_log.update_cell(r, 6, edit_nama)   # nama_mesin
+                            ws_log.update_cell(r, 10, edit_ket)   # keterangan
+                            
+                            st.success("Log berhasil dikoreksi!")
+                            time.sleep(1)
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                            
+                    if delete_btn:
+                        try:
+                            cell = ws_log.find(id_log_pilih)
+                            ws_log.delete_rows(cell.row)
+                            st.success("Log berhasil dihapus permanen!")
+                            time.sleep(1)
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error hapus: {e}")
 
-                    # === UNDO LIKUIDASI (RESTORE) ===
-                    elif row['jenis_aksi'] in ['LIKUIDASI', 'MUSNAH', 'TERJUAL', 'HILANG']:
-                        if col_u.button("♻️ RESTORE DATA", key=f"btn_r_{row['id']}"):
-                            with st.spinner("Mengembalikan data..."):
-                                try:
-                                    new_id = generate_id()
-                                    loc_col_name = 'lokasi_asal' if 'lokasi_asal' in row else 'lokasi'
-                                    
-                                    restore_row = [
-                                        new_id, 
-                                        row[loc_col_name], 
-                                        row['kategori'], 
-                                        row['nama_mesin'], 
-                                        row.get('harga_beli', ''), 
-                                        row.get('no_registrasi', ''), 
-                                        "Aktif"
-                                    ]
-                                    ws_master.append_row(restore_row)
-                                    
-                                    cell_l = ws_log.find(str(row['id']))
-                                    if cell_l: ws_log.delete_rows(cell_l.row)
-                                    
-                                    st.success(f"✅ Data {row['nama_mesin']} DIKEMBALIKAN.")
-                                    time.sleep(2)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error Restore: {e}")
         else:
-            st.info("Belum ada riwayat aktivitas.")
-
-# ==========================================
-# HALAMAN 4: PANDUAN
-# ==========================================
-elif menu == "📘 Panduan Pengguna":
-    st.title("📘 Panduan Pengguna")
-    with st.expander("📌 Cara Filter & Cari"):
-        st.write("Gunakan Sidebar untuk memfilter Lokasi, Kategori, atau cari nama mesin.")
+            st.warning("Tidak ada aktivitas log pada tanggal ini.")

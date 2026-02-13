@@ -153,9 +153,59 @@ st.sidebar.markdown("---")
 if menu == "Master Aset (Aktif)":
     st.title("🏭 Sistem Manajemen Aset Mesin (Cloud)")
     
+    # --- DASHBOARD KPI (HEAD OFFICE VIEW) ---
+    df_master = load_data("master_aset")
+    
+    if not df_master.empty:
+        # Hitung Metrik
+        total_unit = len(df_master)
+        
+        # --- PERBAIKAN LOGIKA HITUNG HARGA ---
+        # Paksa kolom harga jadi String dulu (biar fungsi replace bisa jalan)
+        # Hapus 'Rp', titik, koma, dan spasi
+        # Ubah kembali ke Angka (Numeric)
+        
+        try:
+            # Pastikan kolom ada datanya
+            if 'harga_beli' in df_master.columns:
+                # Bersihkan data: Ubah ke string -> Hapus Rp/./, -> Convert ke Angka
+                series_harga = df_master['harga_beli'].astype(str).str.replace(r'[Rp,. ]', '', regex=True)
+                
+                # Ubah ke numerik (error jadi 0 / NaN)
+                series_harga = pd.to_numeric(series_harga, errors='coerce').fillna(0)
+                
+                # Jumlahkan
+                total_nilai = series_harga.sum()
+            else:
+                total_nilai = 0
+        except Exception as e:
+            st.error(f"Error hitung harga: {e}")
+            total_nilai = 0
+
+        # Format Rupiah Manual (Biar pakai titik sbg pemisah ribuan)
+        str_nilai = f"Rp {total_nilai:,.0f}".replace(",", ".")
+        
+        # -------------------------------------
+
+        # Hitung Aset per Lokasi
+        top_lokasi = df_master['lokasi_toko'].value_counts().idxmax() if not df_master.empty else "-"
+        jumlah_top = df_master['lokasi_toko'].value_counts().max() if not df_master.empty else 0
+
+        # Tampilkan 3 Kolom Metrik
+        k1, k2, k3 = st.columns(3)
+        k1.metric("📦 Total Aset", f"{total_unit} Unit", help="Total unit mesin aktif saat ini")
+        
+        # Pakai variabel str_nilai yang sudah diformat titik
+        k2.metric("💰 Estimasi Aset", str_nilai, help="Total harga beli aset aktif")
+        
+        k3.metric("🏆 Lokasi Terpadat", f"{top_lokasi}", f"{jumlah_top} Unit")
+        
+        st.markdown("---")
+    # ----------------------------------------
+    
     if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
-
+    # Ambil Data Master Aset
     df_master = load_data("master_aset")
     
     if not df_master.empty:
@@ -192,7 +242,32 @@ if menu == "Master Aset (Aktif)":
             excel_data = convert_df_to_excel(df_tampil)
             st.download_button("📥 Download Excel", data=excel_data, file_name='data_aset.xlsx')
 
-        st.dataframe(df_tampil, use_container_width=True, hide_index=True, height=600)
+        # Kita copy dulu datanya biar data asli gak rusak
+        df_display = df_tampil.copy()
+
+        # Cek apakah kolom harga_beli ada
+        if 'harga_beli' in df_display.columns:
+            try:
+                # BERSIHKAN DATA (Hapus Rp, titik, koma, huruf)
+                # Regex r'[^\d]' artinya: Hapus apa saja KECUALI angka (digit 0-9)
+                # .astype(str) memastikan data dianggap teks dulu agar regex jalan
+                clean_series = df_display['harga_beli'].astype(str).str.replace(r'[^\d]', '', regex=True)
+                
+                # UBAH JADI ANGKA (Numeric)
+                # Kalau kosong/error, dianggap 0
+                df_display['harga_beli'] = pd.to_numeric(clean_series, errors='coerce').fillna(0)
+
+                # FORMAT KE RUPIAH (Sekarang aman karena sudah pasti angka)
+                # Format: Rp 92.000.000 (Titik sebagai pemisah ribuan)
+                df_display['harga_beli'] = df_display['harga_beli'].apply(
+                    lambda x: f"Rp {x:,.0f}".replace(",", ".")
+                )
+            except Exception as e:
+                # Jika error, biarkan data mentah (print error ke terminal saja)
+                print(f"Gagal format harga: {e}")
+
+        # Tampilkan DataFrame yang sudah dipoles
+        st.dataframe(df_display, use_container_width=True, hide_index=True, height=600)
     else:
         st.warning("Data Master Aset kosong.")
 
@@ -291,7 +366,15 @@ elif menu == "Riwayat Log (History)":
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 )
 
-            st.dataframe(df_hist_tampil[final_cols], use_container_width=True, hide_index=True)
+            # Format tampilan history
+            df_hist_display = df_hist_tampil[final_cols].copy()
+
+            if 'harga_beli' in df_hist_display.columns:
+                df_hist_display['harga_beli'] = df_hist_display['harga_beli'].apply(
+                    lambda x: f"Rp {x:,.0f}".replace(",", ".") if pd.notnull(x) and str(x).replace('.','').isdigit() else x
+                )
+
+            st.dataframe(df_hist_display, use_container_width=True, hide_index=True)
         else:
             st.warning("Tidak ada data pada rentang tanggal tersebut.")
     else:

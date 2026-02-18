@@ -17,6 +17,7 @@ __pycache__/
 *.xlsx
 *.xls
 *.csv
+*.ipynb
 
 # Kecuali jika punya file template kosong yang mau di-upload, 
 # tambahkan tanda seru (!) di depannya. Contoh: !template.xlsx
